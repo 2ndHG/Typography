@@ -4,9 +4,6 @@
 using System;
 namespace Msdfgen
 {
-    //#include "equation-solver.h"
-
-
     public struct EqResult
     {
         public double x0, x1, x2;
@@ -28,6 +25,11 @@ namespace Msdfgen
     public static class EquationSolver
     {
         public const double EPSILON = 1.0e-14;
+
+        public static int sign(double n)
+        {
+            return Math.Sign(n);
+        }
 
         public static int SolveQuadratic(ref EqResult x, double a, double b, double c)
         {
@@ -106,9 +108,9 @@ namespace Msdfgen
             }
             return SolveCubicNormed(ref x, b / a, c / a, d / a);
         }
+        
         public static double fabs(double m)
         {
-            //TODO: review performance
             return Math.Abs(m);
         }
     }

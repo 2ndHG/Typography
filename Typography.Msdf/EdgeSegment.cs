@@ -23,6 +23,12 @@ namespace Msdfgen
         }
         public bool HasComponent(EdgeColor c) => (color & c) != 0;
 
+        /// <summary>
+        /// Calculates the number of times the horizontal ray starting at (x, y) and extending to the right intersects the segment.
+        /// Returns +1 for upward intersection, -1 for downward intersection.
+        /// </summary>
+        public abstract int ScanlineIntersections(double x, double y);
+
         public abstract void findBounds(ref double left, ref double bottom, ref double right, ref double top);
         public void distanceToPseudoDistance(ref SignedDistance distance, Vector2 origin, double param)
         {
@@ -71,8 +77,6 @@ namespace Msdfgen
         }
         protected static Vector2 mix(Vector2 a, Vector2 b, double weight)
         {
-            //return T((S(1) - weight) * a + weight * b);
-            //return T((S(1) - weight) * a + weight * b);
             return new Vector2(
                 (1 - weight) * a.x + (weight * b.x),
                 (1 - weight) * a.y + (weight * b.y));
@@ -95,6 +99,23 @@ namespace Msdfgen
         }
         public Vector2 P0 => _p0;
         public Vector2 P1 => _p1;
+
+        public override int ScanlineIntersections(double x, double y)
+        {
+            // Standard ray casting rule: include start, exclude end (or vice versa)
+            // to ensure vertices are counted exactly once for closed shapes.
+            if ((y >= _p0.y && y < _p1.y) || (y >= _p1.y && y < _p0.y))
+            {
+                double param = (y - _p0.y) / (_p1.y - _p0.y);
+                double intersectX = mix(_p0, _p1, param).x;
+                if (intersectX > x)
+                {
+                    return _p0.y < _p1.y ? 1 : -1;
+                }
+            }
+            return 0;
+        }
+
         public override void findBounds(ref double left, ref double bottom, ref double right, ref double top)
         {
             Vector2.pointBounds(_p0, ref left, ref bottom, ref right, ref top);
@@ -165,6 +186,42 @@ namespace Msdfgen
         public Vector2 P1 => _p1;
         public Vector2 P2 => _p2;
 
+        public override int ScanlineIntersections(double x, double y)
+        {
+            int total = 0;
+            // Bezier y(t) = (1-t)^2 * p0y + 2(1-t)t * p1y + t^2 * p2y
+            // Rewrite as At^2 + Bt + C = 0
+            Vector2 ab = _p1 - _p0;
+            Vector2 br = _p2 - _p1 - ab; // p2 - 2p1 + p0
+            
+            double A = br.y;
+            double B = 2 * ab.y;
+            double C = _p0.y - y;
+
+            EqResult t = new EqResult();
+            int solutions = EquationSolver.SolveQuadratic(ref t, A, B, C);
+
+            for (int i = 0; i < solutions; ++i)
+            {
+                double ti = t[i];
+                // Check range [0, 1) to ensure continuity and avoid double counting vertices
+                if (ti >= 0 && ti < 1)
+                {
+                    Vector2 p = point(ti);
+                    if (p.x > x)
+                    {
+                        // Derivative of y(t): 2At + B
+                        // If dy > 0, we are crossing upwards (+1)
+                        // If dy < 0, we are crossing downwards (-1)
+                        double dy = 2 * A * ti + B;
+                        if (Math.Abs(dy) < 1e-10) continue;
+
+                        total += EquationSolver.sign(dy);
+                    }
+                }
+            }
+            return total;
+        }
 
         public override void findBounds(ref double left, ref double bottom, ref double right, ref double top)
         {
@@ -279,6 +336,41 @@ namespace Msdfgen
         public Vector2 P1 => _p1;
         public Vector2 P2 => _p2;
         public Vector2 P3 => _p3;
+
+        public override int ScanlineIntersections(double x, double y)
+        {
+            int total = 0;
+            // Bezier y(t) = (1-t)^3 p0 + 3(1-t)^2 t p1 + 3(1-t)t^2 p2 + t^3 p3
+            // Expanded: At^3 + Bt^2 + Ct + D = 0
+            
+            double A = _p3.y - 3 * _p2.y + 3 * _p1.y - _p0.y;
+            double B = 3 * _p2.y - 6 * _p1.y + 3 * _p0.y;
+            double C = 3 * _p1.y - 3 * _p0.y;
+            double D = _p0.y - y;
+
+            EqResult t = new EqResult();
+            int solutions = EquationSolver.SolveCubic(ref t, A, B, C, D);
+
+            for (int i = 0; i < solutions; ++i)
+            {
+                double ti = t[i];
+                // Check range [0, 1) to ensure continuity and avoid double counting vertices
+                if (ti >= 0 && ti < 1)
+                {
+                    Vector2 p = point(ti);
+                    if (p.x > x)
+                    {
+                        // Derivative of y(t): 3At^2 + 2Bt + C
+                        // If dy > 0, we are crossing upwards (+1)
+                        // If dy < 0, we are crossing downwards (-1)
+                        double dy = 3 * A * ti * ti + 2 * B * ti + C;
+                        if (Math.Abs(dy) < 1e-10) continue;
+                        total += EquationSolver.sign(dy);
+                    }
+                }
+            }
+            return total;
+        }
 
         public override void findBounds(ref double left, ref double bottom, ref double right, ref double top)
         {
