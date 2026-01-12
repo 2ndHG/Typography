@@ -148,6 +148,20 @@ namespace Msdfgen
     {
         public List<Contour> contours = new List<Contour>();
         public bool InverseYAxis { get; set; }
+
+        public int GetWinding(Vector2 p)
+        {
+            int totalWinding = 0;
+            foreach (var contour in contours)
+            {
+                foreach (var edge in contour.edges)
+                {
+                    totalWinding += edge.ScanlineIntersections(p.x, p.y);
+                }
+            }
+            return totalWinding;
+        }
+        
         public void normalized()
         {
             int j = contours.Count;
