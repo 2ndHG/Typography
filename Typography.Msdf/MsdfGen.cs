@@ -285,13 +285,9 @@ namespace Msdfgen
             int contourCount = contours.Count;
             int w = output.Width;
             int h = output.Height;
-
-            // Pre-calculate winding for each contour (original logic, but we mainly rely on Global Winding here)
+            
             List<int> windings = new List<int>(contourCount);
-            for (int i = 0; i < contourCount; ++i)
-            {
-                windings.Add(contours[i].winding());
-            }
+            for (int i = 0; i < contourCount; ++i) windings.Add(contours[i].winding());
 
             for (int y = 0; y < h; ++y)
             {
@@ -300,14 +296,10 @@ namespace Msdfgen
                 {
                     Vector2 p = (new Vector2(x + .5, y + .5 - 0.00001) / scale) - translate;
 
-                    // 1. Initialize minimum distance for each channel to infinity
                     EdgePoint sr = new EdgePoint { minDistance = SignedDistance.INFINITE };
                     EdgePoint sg = new EdgePoint { minDistance = SignedDistance.INFINITE };
                     EdgePoint sb = new EdgePoint { minDistance = SignedDistance.INFINITE };
-
-                    // Used to calculate the true distance (take the minimum absolute distance among all contours)
-                    double minAbsDist = Math.Abs(SignedDistance.INFINITE.distance);
-
+                    
                     for (int n = 0; n < contourCount; ++n)
                     {
                         Contour contour = contours[n];
@@ -319,21 +311,18 @@ namespace Msdfgen
                             EdgeSegment edge = edges[ee];
                             SignedDistance distance = edge.signedDistance(p, out double param);
 
-                            // Update R channel
                             if (edge.HasComponent(EdgeColor.RED) && distance < sr.minDistance)
                             {
                                 sr.minDistance = distance;
                                 sr.nearEdge = edge;
                                 sr.nearParam = param;
                             }
-                            // Update G channel
                             if (edge.HasComponent(EdgeColor.GREEN) && distance < sg.minDistance)
                             {
                                 sg.minDistance = distance;
                                 sg.nearEdge = edge;
                                 sg.nearParam = param;
                             }
-                            // Update B channel
                             if (edge.HasComponent(EdgeColor.BLUE) && distance < sb.minDistance)
                             {
                                 sb.minDistance = distance;
@@ -343,32 +332,22 @@ namespace Msdfgen
                         }
                     }
 
-                    // 2. Handle Pseudo-Distance (sharp corner/pseudo-distance correction)
                     if (sr.nearEdge != null) sr.nearEdge.distanceToPseudoDistance(ref sr.minDistance, p, sr.nearParam);
                     if (sg.nearEdge != null) sg.nearEdge.distanceToPseudoDistance(ref sg.minDistance, p, sg.nearParam);
                     if (sb.nearEdge != null) sb.nearEdge.distanceToPseudoDistance(ref sb.minDistance, p, sb.nearParam);
 
-                    // 3. [Key Correction] Use Global Winding Number to determine sign (Overlapping Fix)
-                    // Calculate the winding number of point P with respect to all contours
                     int winding = shape.GetWinding(p);
-
-                    // If winding is not 0, the point is inside the shape -> distance should be negative
-                    // If winding is 0, the point is outside the shape -> distance should be positive
-                    // Take the "absolute distance" of each channel and force the correct sign
-
+                    
                     double rDist = Math.Abs(sr.minDistance.distance);
                     double gDist = Math.Abs(sg.minDistance.distance);
                     double bDist = Math.Abs(sb.minDistance.distance);
 
-                    // Non-zero rule
                     if (winding == 0)
                     {
-                        // Inside: convert to negative
                         rDist = -rDist;
                         gDist = -gDist;
                         bDist = -bDist;
                     }
-                    // else outside: keep positive (already Abs)
 
                     output.SetPixel(x, row,
                             new FloatRGB(
@@ -381,10 +360,10 @@ namespace Msdfgen
 
             if (edgeThreshold > 0)
             {
-                msdfErrorCorrection(output, edgeThreshold / (scale * range));
+                msdfErrorCorrection(output, new Vector2(edgeThreshold / (scale.x * range), edgeThreshold / (scale.y * range)));
             }
         }
-
+        
         public static void generateMSDFLegacy1(FloatRGBBmp output, Shape shape, double range, Vector2 scale, Vector2 translate, double edgeThreshold)
         {
             List<Contour> contours = shape.contours;
