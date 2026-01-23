@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\External\Typography\Typography.OpenFont\Typography.OpenFont.csproj" />
+  </ItemGroup>
+
 </Project>

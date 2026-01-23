@@ -13,6 +13,8 @@ namespace Typography.OpenFont
         //eg. ... In the glyf table, the position of a point ...
         //  ...  the point is on the curve; otherwise, it is off the curve....
 
+        public Vector2 Point => P;
+        public bool OnCurve => onCurve;
         internal Vector2 P;
         internal bool onCurve;
 
